@@ -29,6 +29,7 @@ import time
 import warnings
 from typing import Any, Literal, Optional
 
+import httpx
 from pydantic import Field
 
 from ..import_utils import optional_import_block, require_optional_import
@@ -47,6 +48,8 @@ GROQ_PRICING_1K = {
     "gemma-7b-it": (0.00007, 0.00007),
 }
 
+# Setting timeout same as Groq SDK's default timeout
+DEFAULT_TIMEOUT = httpx.Timeout(timeout=60, connect=5.0)
 
 @register_llm_config
 class GroqLLMConfigEntry(LLMConfigEntry):
@@ -60,6 +63,8 @@ class GroqLLMConfigEntry(LLMConfigEntry):
     top_p: float = Field(default=None)
     hide_tools: Literal["if_all_run", "if_any_run", "never"] = "never"
     tool_choice: Optional[Literal["none", "auto", "required"]] = None
+    proxy: Optional[str] = None
+    """A valid HTTP(S) proxy URL"""
 
     def create_client(self):
         raise NotImplementedError("GroqLLMConfigEntry.create_client is not implemented.")
@@ -86,6 +91,7 @@ class GroqClient:
         if "response_format" in kwargs and kwargs["response_format"] is not None:
             warnings.warn("response_format is not supported for Groq API, it will be ignored.", UserWarning)
         self.base_url = kwargs.get("base_url")
+        self.proxy = kwargs.get("proxy")
 
     def message_retrieval(self, response) -> list:
         """Retrieve and return a list of strings or a list of Choice.Message from the response.
@@ -170,8 +176,12 @@ class GroqClient:
 
         groq_params["messages"] = groq_messages
 
-        # We use chat model by default, and set max_retries to 5 (in line with typical retries loop)
-        client = Groq(api_key=self.api_key, max_retries=5, base_url=self.base_url)
+        if self.proxy is not None:
+            httpx_client = httpx.Client(proxy=self.proxy, timeout=DEFAULT_TIMEOUT)
+            client = Groq(api_key=self.api_key, max_retries=5, base_url=self.base_url, http_client=httpx_client)
+        else:
+            # We use chat model by default, and set max_retries to 5 (in line with typical retries loop)
+            client = Groq(api_key=self.api_key, max_retries=5, base_url=self.base_url)
 
         # Token counts will be returned
         prompt_tokens = 0

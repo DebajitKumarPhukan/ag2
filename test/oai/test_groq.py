@@ -33,7 +33,7 @@ def groq_client():
 
 
 def test_groq_llm_config_entry():
-    groq_llm_config = GroqLLMConfigEntry(api_key="fake_api_key", model="llama3-8b-8192")
+    groq_llm_config = GroqLLMConfigEntry(api_key="fake_api_key", model="llama3-8b-8192", proxy= "http://mock-test-proxy:90/")
     expected = {
         "api_type": "groq",
         "model": "llama3-8b-8192",
@@ -42,6 +42,7 @@ def test_groq_llm_config_entry():
         "stream": False,
         "hide_tools": "never",
         "tags": [],
+        "proxy": "http://mock-test-proxy:90/"
     }
     actual = groq_llm_config.model_dump()
     assert actual == expected, actual
@@ -205,6 +206,40 @@ def test_create_response(mock_chat, groq_client):
     assert response.usage.prompt_tokens == 10, "Response prompt tokens should match the mocked response usage"
     assert response.usage.completion_tokens == 20, "Response completion tokens should match the mocked response usage"
 
+@run_for_optional_imports(["groq"], "groq")
+@patch("autogen.oai.groq.GroqClient.create")
+def test_proxy_config(mock_chat, groq_client):
+    """
+    Test with "proxy" config for Groq Client
+    """
+    mock_groq_response = MagicMock()
+    mock_groq_response.choices = [
+        MagicMock(finish_reason="stop", message=MagicMock(content="Example Groq response", tool_calls=None))
+    ]
+    mock_groq_response.id = "mock_groq_response_id"
+    mock_groq_response.model = "llama3-70b-8192"
+    mock_groq_response.usage = MagicMock(prompt_tokens=10, completion_tokens=20)  # Example token usage
+
+    mock_chat.return_value = mock_groq_response
+
+    # Test parameters
+    params = {
+        "messages": [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "World"}],
+        "model": "llama3-70b-8192",
+        "proxy": "http://mock-test-proxy:90/"
+    }
+
+    # Call the create method
+    response = groq_client.create(params)
+
+    # Assertions to check if response is structured as expected
+    assert response.choices[0].message.content == "Example Groq response", (
+        "Response content should match expected output"
+    )
+    assert response.id == "mock_groq_response_id", "Response ID should match the mocked response ID"
+    assert response.model == "llama3-70b-8192", "Response model should match the mocked response model"
+    assert response.usage.prompt_tokens == 10, "Response prompt tokens should match the mocked response usage"
+    assert response.usage.completion_tokens == 20, "Response completion tokens should match the mocked response usage"    
 
 # Test functions/tools
 @run_for_optional_imports(["groq"], "groq")

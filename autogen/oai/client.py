@@ -890,6 +890,13 @@ class OpenAIWrapper:
         for key in optional_keys:
             if key in config:
                 openai_config[key] = config[key]
+    
+    def _configure_openai_config_for_groq(self, config: dict[str, Any], openai_config: dict[str, Any]) -> None:
+        """Update openai_config with additional groq configs."""
+        optional_keys = ["proxy"]
+        for key in optional_keys:
+            if key in config:
+                openai_config[key] = config[key]
 
     def _register_default_client(self, config: dict[str, Any], openai_config: dict[str, Any]) -> None:
         """Create a client with the given config to override openai_config,
@@ -956,6 +963,7 @@ class OpenAIWrapper:
             elif api_type is not None and api_type.startswith("groq"):
                 if groq_import_exception:
                     raise ImportError("Please install `groq` to use the Groq API.")
+                self._configure_openai_config_for_groq(config, openai_config)
                 client = GroqClient(response_format=response_format, **openai_config)
                 self._clients.append(client)
             elif api_type is not None and api_type.startswith("cohere"):
